@@ -319,9 +319,7 @@
         let historyRecords = JSON.parse(localStorage.getItem('commissionHistory')) || [];
 
         // 从本地存储加载平均单量大小，若无则使用默认值
-        let defaultOrderSize = parseFloat(localStorage.getItem('defaultOrderSize')) || 48
-            
-        80;
+        let defaultOrderSize = parseFloat(localStorage.getItem('defaultOrderSize')) || 4880;
 
         // 初始化页面
         document.addEventListener('DOMContentLoaded', function() {
