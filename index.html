@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>提成计算器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#10B981',
+                        accent: '#6366F1',
+                        neutral: '#6B7280',
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .card-shadow {
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            }
+            .transition-all-300 {
+                transition: all 300ms ease-in-out;
+            }
+            .input-focus {
+                @apply focus:ring-2 focus:ring-primary/50 focus:border-primary focus:outline-none;
+            }
+            .btn-hover {
+                @apply hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200;
+            }
+            .rule-container {
+                max-height: 0;
+                overflow: hidden;
+                transition: max-height 0.5s ease-out;
+            }
+            .rule-container.open {
+                max-height: 1000px;
+                transition: max-height 0.5s ease-in;
+            }
+            .incentive-container {
+                max-height: 0;
+                overflow: hidden;
+                transition: max-height 0.3s ease-out;
+            }
+            .incentive-container.open {
+                max-height: 800px;
+                transition: max-height 0.3s ease-in;
+            }
+            .row-enter {
+                animation: rowEnter 0.3s ease-out forwards;
+            }
+            @keyframes rowEnter {
+                from { opacity: 0; transform: translateY(10px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            .row-exit {
+                animation: rowExit 0.3s ease-in forwards;
+            }
+            @keyframes rowExit {
+                from { opacity: 1; transform: translateY(0); }
+                to { opacity: 0; transform: translateY(10px); }
+            }
+            .incentive-active {
+                animation: pulse 1.5s infinite;
+            }
+            @keyframes pulse {
+                0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+                70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+                100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+            }
+            .saved-indicator {
+                position: absolute;
+                right: 0.5rem;
+                top: 50%;
+                transform: translateY(-50%);
+                font-size: 0.75rem;
+                padding: 0.15rem 0.3rem;
+                border-radius: 0.25rem;
+                opacity: 0;
+                transition: opacity 0.3s ease-in-out;
+            }
+            .saved-indicator.visible {
+                opacity: 1;
+            }
+            .result-card {
+                @apply bg-white rounded-lg p-3 shadow-sm border border-gray-100 hover:shadow-md transition-all duration-200;
+            }
+            .result-value {
+                @apply font-semibold text-lg;
+            }
+            .result-highlight {
+                @apply bg-primary/5 border-primary/30;
+            }
+        }
+  
+    </style>
+</head>
+<body class="bg-gray-50 font-inter text-gray-800 min-h-screen">
+    <iframe scrolling="no" src="https://widget.tianqiapi.com/?style=tb&skin=sogou" frameborder="0" width="350" height="24" allowtransparency="true"></iframe>
+    <div class="container mx-auto px-4 py-8 max-w-5xl">
+        <header class="mb-8 text-center">
+            <h1 class="text-[clamp(1.8rem,5vw,2.5rem)] font-bold text-primary mb-2">提成计算器</h1>
+            <p class="text-neutral">快速计算销售提成和业绩目标</p>
+        </header>
+
+        <main class="space-y-6">
+            <!-- 输入和结果区域 - 响应式布局 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- 输入区域 -->
+                <div class="bg-white rounded-xl p-4 card-shadow relative">
+                    <h2 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                        <i class="fa-solid fa-calculator mr-2 text-primary"></i>输入数据
+                    </h2>
+                    <div class="space-y-3">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div class="relative">
+                                <label for="liangji" class="block text-xs font-medium text-gray-700 mb-1">量级</label>
+                                <input type="number" id="liangji" class="w-full px-3 py-2 border border-gray-300 rounded-lg input-focus" placeholder="请输入量级" required>
+                            </div>
+                            <div class="relative">
+                                <label for="gmv" class="block text-xs font-medium text-gray-700 mb-1">GMV</label>
+                                <input type="number" id="gmv" class="w-full px-3 py-2 border border-gray-300 rounded-lg input-focus" placeholder="请输入GMV" required>
+                            </div>
+                            <div class="relative">
+                                <label for="orderSize" class="block text-xs font-medium text-gray-700 mb-1">平均单量大小</label>
+                                <input type="number" id="orderSize" class="w-full px-3 py-2 border border-gray-300 rounded-lg input-focus" placeholder="默认4580">
+                                <span id="orderSizeSaved" class="saved-indicator bg-green-100 text-green-800">已保存</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button id="calculateBtn" class="mt-3 w-full bg-primary hover:bg-primary/90 text-white font-medium py-2.5 px-4 rounded-lg btn-hover flex items-center justify-center">
+                        <i class="fa-solid fa-calculator mr-2"></i>计算提成
+                    </button>
+    <div id="t" style="max-width:600px;padding:0.5rem;border:0.5px solid #ddd;border-radius:0.5px;"></div>
+                </div>
+
+                <!-- 结果区域 -->
+                <div class="bg-white rounded-xl p-4 card-shadow">
+                    <h2 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                        <i class="fa-solid fa-table mr-2 text-secondary"></i>计算结果
+                    </h2>
+                    <div id="resultContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3" style="display: none;">
+                        <div class="result-card">
+                            <div class="text-xs text-gray-500 mb-1">R值</div>
+                            <div id="rValue" class="result-value">--</div>
+                        </div>
+                        <div class="result-card">
+                            <div class="text-xs text-gray-500 mb-1">提点</div>
+                            <div id="commissionRate" class="result-value">--</div>
+                        </div>
+                        <div class="result-card result-highlight">
+                            <div class="text-xs text-gray-500 mb-1">基础提成</div>
+                            <div id="baseCommission" class="result-value text-secondary">--</div>
+                        </div>
+                        <div class="result-card result-highlight">
+                            <div class="text-xs text-gray-500 mb-1">激励</div>
+                            <div id="incentiveValue" class="result-value text-accent">--</div>
+                        </div>
+                        <div class="result-card result-highlight">
+                            <div class="text-xs text-gray-500 mb-1">提成+激励</div>
+                            <div id="totalCommission" class="result-value text-accent">--</div>
+                        </div>
+                        <div class="result-card">
+                            <div class="text-xs text-gray-500 mb-1">下一档提点</div>
+                            <div id="nextTierRate" class="result-value">--</div>
+                        </div>
+                        <div class="result-card">
+                            <div class="text-xs text-gray-500 mb-1">距离跳点</div>
+                            <div id="distanceToNextTier" class="result-value">--</div>
+                        </div>
+                        <div class="result-card">
+                            <div class="text-xs text-gray-500 mb-1">差整单</div>
+                            <div id="diffWholeOrders" class="result-value">--</div>
+                        </div>
+                        <div class="result-card">
+                            <div class="text-xs text-gray-500 mb-1">跳点后提成</div>
+                            <div id="nextTierCommission" class="result-value text-secondary">--</div>
+                        </div>
+                        <div class="result-card">
+                            <div class="text-xs text-gray-500 mb-1">多赚金额</div>
+                            <div id="extraEarnings" class="result-value text-accent">--</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 提点规则设置 - 默认隐藏，点击按钮显示，支持动态添加/删除 -->
+            <div class="bg-white rounded-xl p-4 card-shadow">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-lg font-semibold text-gray-800 flex items-center cursor-pointer" id="toggleRulesBtn">
+                        <i class="fa-solid fa-sliders mr-2 text-accent"></i>
+                        <span id="rulesBtnText">提点规则设置</span>
+                        <i id="rulesBtnIcon" class="fa-solid fa-chevron-down ml-2 text-gray-500 transition-transform duration-300"></i>
+                    </h2>
+                </div>
+                
+                <div id="rulesContainer" class="rule-container">
+                    <!-- 激励设置 - 现在支持多条规则 -->
+                    <div class="bg-gray-50 p-3 rounded-lg mt-3">
+                        <div class="flex justify-between items-center mb-3">
+                            <h3 class="text-sm font-medium text-accent flex items-center">
+                                <i class="fa-solid fa-bolt mr-1 text-accent"></i>激励设置
+                            </h3>
+                            <button id="addIncentiveBtn" class="text-accent hover:text-accent/80 text-xs flex items-center">
+                                <i class="fa-solid fa-plus-circle mr-1"></i>添加激励
+                            </button>
+                        </div>
+                        
+                        <div id="incentiveTableContainer" class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-100">
+                                    <tr>
+                                        <th scope="col" class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">触发条件(R值≥)</th>
+                                        <th scope="col" class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">激励金额</th>
+                                        <th scope="col" class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="incentiveTable" class="bg-white divide-y divide-gray-200">
+                                    <!-- JavaScript 动态生成激励规则行 -->
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div class="mt-2 text-xs text-gray-500 italic">
+                            <i class="fa-solid fa-info-circle mr-1"></i>当R值达到或超过触发值时，可获得对应激励金额
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">R值范围</th>
+                                    <th scope="col" class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">提点(%)</th>
+                                    <th scope="col" class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rulesTable" class="bg-white divide-y divide-gray-200">
+                                <!-- JavaScript 动态生成规则行 -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="flex space-x-3 mt-3">
+                        <button id="addRuleBtn" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg btn-hover flex items-center justify-center text-sm">
+                            <i class="fa-solid fa-plus mr-2"></i>添加档位
+                        </button>
+                        <button id="saveRulesBtn" class="flex-1 bg-accent hover:bg-accent/90 text-white font-medium py-2 px-4 rounded-lg btn-hover flex items-center justify-center text-sm">
+                            <i class="fa-solid fa-save mr-2"></i>保存所有设置
+                        </button>
+                        <button id="resetRulesBtn" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-2 px-4 rounded-lg btn-hover flex items-center justify-center text-sm">
+                            <i class="fa-solid fa-refresh mr-2"></i>重置默认值
+                        </button>
+                    </div>
+                    <div id="saveStatus" class="mt-2 text-center text-xs text-gray-500 hidden"></div>
+                </div>
+            </div>
+
+            <!-- 历史记录 -->
+            <div class="bg-white rounded-xl p-4 card-shadow">
+                <h2 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                    <i class="fa-solid fa-history mr-2 text-primary"></i>历史计算记录
+                </h2>
+                <div id="historyContainer" class="space-y-2">
+                    <div class="text-center text-gray-500 py-3 text-sm" id="emptyHistory">
+                        暂无历史记录
+                    </div>
+                    <div id="historyList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                        <!-- JavaScript 动态生成历史记录 -->
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer class="mt-8 text-center text-xs text-gray-500">
+            <p>© 2025 提成计算 | 数据保存本地 |  <span>累计访问量:<img src="https://w.saobby.com/w/wboepl5f" alt="计数器" class="inline"></span></p>
+    <a href="https://wumingsc.github.io/jiuyaolianxi/" class="text-primary hover:underline">留言反馈</a>
+        </footer>
+    </div>
+
+    <script>
+        // 使用0和9999代替无穷大/无穷小
+        const MIN_VALUE = 0;
+        const MAX_VALUE = 9999;
+
+        // 更新后的默认提点规则
+        const defaultCommissionRules = [
+            { min: MIN_VALUE, max: 50, rate: 0 },
+            { min: 50, max: 65, rate: 0.04 },
+            { min: 65, max: 80, rate: 0.07 },
+            { min: 80, max: 95, rate: 0.10 },
+            { min: 95, max: 110, rate: 0.13 },
+            { min: 110, max: 130, rate: 0.15 },
+            { min: 130, max: MAX_VALUE, rate: 0.18 }
+        ];
+
+        // 默认激励设置
+        const defaultIncentiveRules = [
+            { trigger: 5000, amount: 1000 },
+            { trigger: 6000, amount: 2000 }
+        ];
+
+        // 从本地存储加载规则，若无则使用默认规则
+        let commissionRules = JSON.parse(localStorage.getItem('commissionRules')) || defaultCommissionRules;
+        let incentiveRules = JSON.parse(localStorage.getItem('incentiveRules')) || defaultIncentiveRules;
+
+        // 从本地存储加载历史记录
+        let historyRecords = JSON.parse(localStorage.getItem('commissionHistory')) || [];
+
+        // 从本地存储加载平均单量大小，若无则使用默认值
+        let defaultOrderSize = parseFloat(localStorage.getItem('defaultOrderSize')) || 4580;
+
+        // 初始化页面
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化规则表格和激励表格
+            initRulesTable();
+            initIncentiveTable();
+            
+            // 初始化输入框默认值
+            document.getElementById('orderSize').value = defaultOrderSize;
+            
+            // 渲染历史记录
+            renderHistory();
+            
+            // 绑定事件监听器
+            document.getElementById('calculateBtn').addEventListener('click', calculate);
+            document.getElementById('toggleRulesBtn').addEventListener('click', toggleRules);
+            document.getElementById('addRuleBtn').addEventListener('click', addRule);
+            document.getElementById('addIncentiveBtn').addEventListener('click', addIncentive);
+            document.getElementById('saveRulesBtn').addEventListener('click', saveAllSettings);
+            document.getElementById('resetRulesBtn').addEventListener('click', resetAllSettings);
+            
+            // 为规则输入框添加事件监听器
+            document.addEventListener('change', function(e) {
+                if (e.target.closest('#rulesTable input') || e.target.closest('#incentiveTable input')) {
+                    const saveStatus = document.getElementById('saveStatus');
+                    saveStatus.textContent = '设置已修改，请保存';
+                    saveStatus.classList.remove('hidden', 'text-green-500', 'text-red-500', 'text-accent');
+                    saveStatus.classList.add('text-accent');
+                    saveStatus.style.display = 'block';
+                }
+            });
+            
+            // 为平均单量大小输入框添加事件监听器
+            document.getElementById('orderSize').addEventListener('change', function() {
+                saveOrderSizeWithIndicator();
+            });
+        });
+
+        // 初始化规则表格
+        function initRulesTable() {
+            const tableBody = document.getElementById('rulesTable');
+            tableBody.innerHTML = '';
+
+            commissionRules.forEach((rule, index) => {
+                const row = document.createElement('tr');
+                row.className = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+                row.classList.add('rule-row');
+                row.setAttribute('data-index', index);
+                
+                row.innerHTML = `
+                    <td class="px-3 py-1.5 whitespace-nowrap">
+                        <div class="flex items-center">
+                            <input type="number" class="w-12 px-2 py-1 border border-gray-300 rounded text-xs input-focus" 
+                                value="${rule.min}" data-index="${index}" data-field="min">
+                            <span class="mx-1 text-xs">≤ R值 <</span>
+                            <input type="number" class="w-12 px-2 py-1 border border-gray-300 rounded text-xs input-focus" 
+                                value="${rule.max}" data-index="${index}" data-field="max">
+                        </div>
+                    </td>
+                    <td class="px-3 py-1.5 whitespace-nowrap">
+                        <input type="number" class="w-14 px-2 py-1 border border-gray-300 rounded text-xs input-focus" 
+                            value="${(rule.rate * 100).toFixed(2)}" data-index="${index}" data-field="rate">
+                    </td>
+                    <td class="px-3 py-1.5 whitespace-nowrap text-center">
+                        ${commissionRules.length > 1 ? 
+                            `<button class="delete-rule text-red-500 hover:text-red-700 text-xs" data-index="${index}">
+                                <i class="fa-solid fa-trash"></i> 删除
+                            </button>` : ''
+                        }
+                    </td>
+                `;
+                
+                tableBody.appendChild(row);
+                // 添加入场动画
+                setTimeout(() => {
+                    row.classList.add('row-enter');
+                }, 50 * index);
+            });
+            
+            // 添加删除规则事件
+            document.querySelectorAll('.delete-rule').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const index = parseInt(this.dataset.index);
+                    deleteRule(index);
+                });
+            });
+        }
+
+        // 初始化激励规则表格
+        function initIncentiveTable() {
+            const tableBody = document.getElementById('incentiveTable');
+            tableBody.innerHTML = '';
+
+            if (incentiveRules.length === 0) {
+                // 添加一个空行以便用户可以开始添加激励
+                addIncentive();
+                return;
+            }
+
+            incentiveRules.forEach((rule, index) => {
+                const row = document.createElement('tr');
+                row.className = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+                row.classList.add('incentive-row');
+                row.setAttribute('data-index', index);
+                
+                row.innerHTML = `
+                    <td class="px-3 py-1.5 whitespace-nowrap">
+                        <input type="number" class="w-16 px-2 py-1 border border-gray-300 rounded text-xs input-focus" 
+                            value="${rule.trigger}" data-index="${index}" data-field="trigger">
+                    </td>
+                    <td class="px-3 py-1.5 whitespace-nowrap">
+                        <input type="number" class="w-16 px-2 py-1 border border-gray-300 rounded text-xs input-focus" 
+                            value="${rule.amount}" data-index="${index}" data-field="amount">
+                    </td>
+                    <td class="px-3 py-1.5 whitespace-nowrap text-center">
+                        ${incentiveRules.length > 1 ? 
+                            `<button class="delete-incentive text-red-500 hover:text-red-700 text-xs" data-index="${index}">
+                                <i class="fa-solid fa-trash"></i> 删除
+                            </button>` : ''
+                        }
+                    </td>
+                `;
+                
+                tableBody.appendChild(row);
+                // 添加入场动画
+                setTimeout(() => {
+                    row.classList.add('row-enter');
+                }, 50 * index);
+            });
+            
+            // 添加删除激励事件
+            document.querySelectorAll('.delete-incentive').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const index = parseInt(this.dataset.index);
+                    deleteIncentive(index);
+                });
+            });
+        }
+
+        // 添加新规则
+        function addRule() {
+            // 获取当前规则中的最大值
+            const maxCurrentValue = commissionRules.reduce((max, rule) => {
+                if (rule.max > max && rule.max < MAX_VALUE) {
+                    return rule.max;
+                }
+                return max;
+            }, MIN_VALUE);
+            
+            // 创建新规则，范围为当前最大值+10
+            const newRule = {
+                min: maxCurrentValue,
+                max: Math.min(maxCurrentValue + 10, MAX_VALUE),
+                rate: commissionRules[commissionRules.length - 2].rate + 0.02 // 比上一档高2%
+            };
+            
+            // 添加到规则数组（倒数第二个位置，最后一个是最大值）
+            commissionRules.splice(commissionRules.length - 1, 0, newRule);
+            
+            // 更新表格
+            initRulesTable();
+            
+            // 显示保存状态
+            showSaveStatus('已添加新档位，请调整范围和提点并保存', 'text-accent');
+        }
+
+        // 删除规则
+        function deleteRule(index) {
+            // 不能删除最后一条规则（最大值那条）
+            if (commissionRules.length <= 1) {
+                alert('至少需要保留一个档位规则');
+                return;
+            }
+            
+            // 获取要删除的行
+            const row = document.querySelector(`.rule-row[data-index="${index}"]`);
+            if (row) {
+                // 添加退出动画
+                row.classList.add('row-exit');
+                
+                // 动画结束后删除
+                setTimeout(() => {
+                    // 从数组中删除
+                    commissionRules.splice(index, 1);
+                    
+                    // 更新表格
+                    initRulesTable();
+                    
+                    // 显示保存状态
+                    showSaveStatus('已删除档位，请保存更改', 'text-accent');
+                }, 300);
+            }
+        }
+
+        // 添加新激励规则
+        function addIncentive() {
+            // 创建新激励规则，默认值为上一个规则的值+10%，如果没有则使用默认值
+            let defaultTrigger = 100;
+            let defaultAmount = 1000;
+            
+            if (incentiveRules.length > 0) {
+                const lastRule = incentiveRules[incentiveRules.length - 1];
+                defaultTrigger = lastRule.trigger + 10;
+                defaultAmount = Math.round(lastRule.amount * 1.1);
+            }
+            
+            const newRule = {
+                trigger: defaultTrigger,
+                amount: defaultAmount
+            };
+            
+            // 添加到规则数组
+            incentiveRules.push(newRule);
+            
+            // 更新表格
+            initIncentiveTable();
+            
+            // 显示保存状态
+            showSaveStatus('已添加新激励规则，请调整触发条件和金额并保存', 'text-accent');
+        }
+
+        // 删除激励规则
+        function deleteIncentive(index) {
+            // 至少保留一条规则
+            if (incentiveRules.length <= 1) {
+                alert('至少需要保留一条激励规则');
+                return;
+            }
+            
+            // 获取要删除的行
+            const row = document.querySelector(`.incentive-row[data-index="${index}"]`);
+            if (row) {
+                // 添加退出动画
+                row.classList.add('row-exit');
+                
+                // 动画结束后删除
+                setTimeout(() => {
+                    // 从数组中删除
+                    incentiveRules.splice(index, 1);
+                    
+                    // 更新表格
+                    initIncentiveTable();
+                    
+                    // 显示保存状态
+                    showSaveStatus('已删除激励规则，请保存更改', 'text-accent');
+                }, 300);
+            }
+        }
+
+        // 保存所有设置
+        function saveAllSettings() {
+            // 从输入框收集提点规则数据
+            const ruleInputs = document.querySelectorAll('#rulesTable input');
+            ruleInputs.forEach(input => {
+                const index = parseInt(input.dataset.index);
+                const field = input.dataset.field;
+                let value = parseFloat(input.value);
+                
+                // 确保值在有效范围内
+                if (field === 'min') {
+                    value = Math.max(MIN_VALUE, Math.min(value, commissionRules[index].max - 0.01));
+                } else if (field === 'max') {
+                    value = Math.max(commissionRules[index].min + 0.01, Math.min(value, MAX_VALUE));
+                } else if (field === 'rate') {
+                    value = Math.max(0, value) / 100; // 转换为小数
+                }
+                
+                commissionRules[index][field] = value;
+            });
+            
+            // 验证提点规则是否有效
+            if (!validateCommissionRules()) {
+                showSaveStatus('提点规则设置无效：范围有重叠或提点未递增', 'text-red-500');
+                return;
+            }
+            
+            // 从输入框收集激励规则数据
+            const incentiveInputs = document.querySelectorAll('#incentiveTable input');
+            incentiveInputs.forEach(input => {
+                const index = parseInt(input.dataset.index);
+                const field = input.dataset.field;
+                let value = parseFloat(input.value);
+                
+                // 确保值有效
+                if (field === 'trigger') {
+                    value = Math.max(MIN_VALUE, value);
+                } else if (field === 'amount') {
+                    value = Math.max(0, value);
+                }
+                
+                incentiveRules[index][field] = value;
+            });
+            
+            // 验证激励规则是否有效
+            if (!validateIncentiveRules()) {
+                showSaveStatus('激励规则设置无效：触发条件必须递增', 'text-red-500');
+                return;
+            }
+            
+            // 保存到本地存储
+            localStorage.setItem('commissionRules', JSON.stringify(commissionRules));
+            localStorage.setItem('incentiveRules', JSON.stringify(incentiveRules));
+            
+            // 显示保存状态
+            showSaveStatus('所有设置已保存', 'text-green-500');
+        }
+
+        // 验证提点规则有效性
+        function validateCommissionRules() {
+            // 对commissionRules进行排序，确保按min值从小到大排列
+            const sortedRules = [...commissionRules].sort((a, b) => a.min - b.min);
+            
+            // 检查是否有重叠范围和提点是否递增
+            for (let i = 0; i < sortedRules.length - 1; i++) {
+                const current = sortedRules[i];
+                const next = sortedRules[i + 1];
+                
+                // 检查范围是否重叠或不连续
+                if (current.max !== next.min) {
+                    return false;
+                }
+                
+                // 检查提点是否递增
+                if (current.rate >= next.rate) {
+                    return false;
+                }
+            }
+            
+            // 确保最后一条规则的上限是最大值
+            if (sortedRules[sortedRules.length - 1].max !== MAX_VALUE) {
+                return false;
+            }
+            
+            // 确保第一条规则的下限是最小值
+            if (sortedRules[0].min !== MIN_VALUE) {
+                return false;
+            }
+            
+            return true;
+        }
+
+        // 验证激励规则有效性
+        function validateIncentiveRules() {
+            // 对激励规则进行排序，确保按触发值从小到大排列
+            const sortedIncentives = [...incentiveRules].sort((a, b) => a.trigger - b.trigger);
+            
+            // 检查触发条件是否递增
+            for (let i = 0; i < sortedIncentives.length - 1; i++) {
+                const current = sortedIncentives[i];
+                const next = sortedIncentives[i + 1];
+                
+                if (current.trigger >= next.trigger) {
+                    return false;
+                }
+            }
+            
+            return true;
+        }
+
+        // 重置所有设置为默认值
+        function resetAllSettings() {
+            commissionRules = [...defaultCommissionRules];
+            incentiveRules = [...defaultIncentiveRules];
+            
+            initRulesTable();
+            initIncentiveTable();
+            
+            // 显示重置状态
+            showSaveStatus('已恢复所有默认设置', 'text-accent');
+        }
+
+        // 显示保存状态消息
+        function showSaveStatus(message, colorClass) {
+            const saveStatus = document.getElementById('saveStatus');
+            saveStatus.textContent = message;
+            saveStatus.classList.remove('hidden', 'text-green-500', 'text-red-500', 'text-accent');
+            saveStatus.classList.add(colorClass);
+            saveStatus.style.display = 'block';
+            
+            // 3秒后隐藏状态
+            setTimeout(() => {
+                saveStatus.style.display = 'none';
+            }, 3000);
+        }
+
+        // 切换规则显示/隐藏
+        function toggleRules() {
+            const container = document.getElementById('rulesContainer');
+            const icon = document.getElementById('rulesBtnIcon');
+            const text = document.getElementById('rulesBtnText');
+            
+            if (container.classList.contains('open')) {
+                container.classList.remove('open');
+                icon.classList.remove('rotate-180');
+                text.textContent = '提点规则设置';
+            } else {
+                container.classList.add('open');
+                icon.classList.add('rotate-180');
+                text.textContent = '收起提点规则';
+            }
+        }
+
+        // 保存平均单量大小到本地存储并显示保存指示器
+        function saveOrderSizeWithIndicator() {
+            const orderSizeInput = document.getElementById('orderSize');
+            const orderSize = parseFloat(orderSizeInput.value);
+            const savedIndicator = document.getElementById('orderSizeSaved');
+            
+            if (!isNaN(orderSize) && orderSize > 0) {
+                localStorage.setItem('defaultOrderSize', orderSize);
+                defaultOrderSize = orderSize;
+                
+                // 显示保存指示器
+                savedIndicator.classList.add('visible');
+                
+                // 3秒后隐藏指示器
+                setTimeout(() => {
+                    savedIndicator.classList.remove('visible');
+                }, 3000);
+            }
+        }
+
+        // 根据R值查找提点
+        function getCommissionRate(rValue) {
+            // 确保R值是有效的数字
+            if (isNaN(rValue) || rValue <= 0) return 0;
+            
+            // 对commissionRules进行排序，确保按min值从小到大排列
+            const sortedRules = [...commissionRules].sort((a, b) => a.min - b.min);
+            
+            for (const rule of sortedRules) {
+                if (rValue >= rule.min && rValue < rule.max) {
+                    return rule.rate;
+                }
+            }
+            
+            // 如果R值超出最大范围，使用最后一档提点
+            if (rValue >= sortedRules[sortedRules.length - 1].max) {
+                return sortedRules[sortedRules.length - 1].rate;
+            }
+            
+            return 0;
+        }
+
+        // 根据R值计算激励金额
+        function calculateIncentive(rValue) {
+            // 确保R值是有效的数字
+            if (isNaN(rValue) || rValue <= 0) return 0;
+            
+            // 对激励规则进行排序，确保按触发值从小到大排列
+            const sortedIncentives = [...incentiveRules].sort((a, b) => a.trigger - b.trigger);
+            
+            let totalIncentive = 0;
+            
+            // 遍历所有激励规则，累加满足条件的激励
+            for (const rule of sortedIncentives) {
+                if (rValue >= rule.trigger) {
+                    totalIncentive += rule.amount;
+                }
+            }
+            
+            return totalIncentive;
+        }
+
+        // 计算当前和下一档信息
+        function getCurrentAndNextTier(rValue) {
+            // 确保R值是有效的数字
+            if (isNaN(rValue) || rValue <= 0) return { current: null, next: null };
+            
+            // 对commissionRules进行排序，确保按min值从小到大排列
+            const sortedRules = [...commissionRules].sort((a, b) => a.min - b.min);
+            
+            // 找到当前档位
+            let currentTier = null;
+            for (const rule of sortedRules) {
+                if (rValue >= rule.min && rValue < rule.max) {
+                    currentTier = rule;
+                    break;
+                }
+            }
+            
+            // 如果没找到当前档位，尝试找到合适的位置
+            if (!currentTier) {
+                for (let i = 0; i < sortedRules.length; i++) {
+                    if (rValue < sortedRules[i].min) {
+                        currentTier = i > 0 ? sortedRules[i - 1] : sortedRules[0];
+                        break;
+                    }
+                }
+                
+                // 如果R值比所有档位的最大值都大，使用最后一档
+                if (!currentTier) {
+                    currentTier = sortedRules[sortedRules.length - 1];
+                }
+            }
+            
+            // 寻找下一档
+            let nextTier = null;
+            if (currentTier && currentTier.max < MAX_VALUE) {
+                const currentIndex = sortedRules.indexOf(currentTier);
+                if (currentIndex < sortedRules.length - 1) {
+                    nextTier = sortedRules[currentIndex + 1];
+                }
+            }
+            
+            return { current: currentTier, next: nextTier };
+        }
+
+        // 计算并更新结果
+        function calculate() {
+            const liangji = parseFloat(document.getElementById('liangji').value);
+            const gmv = parseFloat(document.getElementById('gmv').value);
+            const orderSize = parseFloat(document.getElementById('orderSize').value) || defaultOrderSize;
+            
+            if (isNaN(liangji) || isNaN(gmv) || liangji <= 0 || gmv <= 0) {
+                alert('请输入有效的量级和GMV！');
+                return;
+            }
+            
+            // 保存平均单量大小
+            saveOrderSizeWithIndicator();
+            
+            const rValue = gmv / liangji;
+            const commissionRate = getCommissionRate(rValue);
+            const baseCommission = gmv * commissionRate;
+            
+            // 计算激励
+            const incentiveValue = calculateIncentive(rValue);
+            const incentiveElement = document.getElementById('incentiveValue');
+            
+            // 确保基础提成计算正确
+            console.log('R值:', rValue, '提点:', commissionRate, '基础提成:', baseCommission);
+            
+            // 更新结果显示
+            document.getElementById('resultContainer').style.display = 'grid';
+            document.getElementById('rValue').textContent = rValue.toFixed(2);
+            document.getElementById('commissionRate').textContent = (commissionRate * 100).toFixed(2) + '%';
+            document.getElementById('baseCommission').textContent = '¥' + baseCommission.toFixed(2);
+            document.getElementById('incentiveValue').textContent = '¥' + incentiveValue.toFixed(2);
+            document.getElementById('totalCommission').textContent = '¥' + (baseCommission + incentiveValue).toFixed(2);
+            
+            // 计算并显示下一档信息
+            const tierInfo = getCurrentAndNextTier(rValue);
+            if (tierInfo.next) {
+                document.getElementById('nextTierRate').textContent = (tierInfo.next.rate * 100).toFixed(2) + '%';
+                const nextTierMinRValue = tierInfo.next.min;
+                const nextTierMinGMV = nextTierMinRValue * liangji;
+                const distanceToNextTier = Math.max(0, nextTierMinGMV - gmv);
+                const diffWholeOrders = (distanceToNextTier / orderSize).toFixed(1);
+                const nextTierCommission = nextTierMinGMV * tierInfo.next.rate;
+                const extraEarnings = nextTierCommission - baseCommission;
+                
+                document.getElementById('distanceToNextTier').textContent = '¥' + distanceToNextTier.toFixed(2);
+                document.getElementById('diffWholeOrders').textContent = diffWholeOrders;
+                document.getElementById('nextTierCommission').textContent = '¥' + nextTierCommission.toFixed(2);
+                document.getElementById('extraEarnings').textContent = '¥' + extraEarnings.toFixed(2);
+            } else {
+                document.getElementById('nextTierRate').textContent = '已满提';
+                document.getElementById('distanceToNextTier').textContent = '已满提';
+                document.getElementById('diffWholeOrders').textContent = '已满提';
+                document.getElementById('nextTierCommission').textContent = '已满提';
+                document.getElementById('extraEarnings').textContent = '已满提';
+            }
+            
+            // 保存历史记录
+            saveHistory(liangji, gmv, rValue, commissionRate, baseCommission, incentiveValue, baseCommission + incentiveValue);
+            
+            // 添加结果出现动画
+            const resultCards = document.querySelectorAll('.result-card');
+            resultCards.forEach((card, index) => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(10px)';
+                
+                setTimeout(() => {
+                    card.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, 50 * index);
+            });
+        }
+
+        // 保存计算历史
+        function saveHistory(liangji, gmv, rValue, commissionRate, baseCommission, incentiveValue, totalCommission) {
+            const record = {
+                id: Date.now(),
+                timestamp: new Date().toLocaleString(),
+                liangji,
+                gmv,
+                rValue: rValue.toFixed(2),
+                commissionRate: (commissionRate * 100).toFixed(2) + '%',
+                baseCommission: '¥' + baseCommission.toFixed(2),
+                incentiveValue: incentiveValue ? '¥' + incentiveValue.toFixed(2) : '¥0.00',
+                totalCommission: '¥' + totalCommission.toFixed(2)
+            };
+            
+            // 添加到历史记录
+            historyRecords.unshift(record);
+            
+            // 限制最多保存20条记录
+            if (historyRecords.length > 20) {
+                historyRecords.pop();
+            }
+            
+            // 保存到本地存储
+            localStorage.setItem('commissionHistory', JSON.stringify(historyRecords));
+            
+            // 更新历史记录显示
+            renderHistory();
+        }
+
+        // 渲染历史记录
+        function renderHistory() {
+            const historyList = document.getElementById('historyList');
+            const emptyHistory = document.getElementById('emptyHistory');
+            
+            if (historyRecords.length === 0) {
+                emptyHistory.style.display = 'block';
+                historyList.innerHTML = '';
+                return;
+            }
+            
+            emptyHistory.style.display = 'none';
+            historyList.innerHTML = '';
+            
+            historyRecords.forEach(record => {
+                const item = document.createElement('div');
+                item.className = 'bg-gray-50 p-2.5 rounded-lg hover:shadow-md transition-all duration-200';
+                
+                const incentiveHtml = record.incentiveValue !== '¥0.00' 
+                    ? `<div>激励: <span class="font-medium text-accent">${record.incentiveValue}</span></div>` 
+                    : '';
+                
+                item.innerHTML = `
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-xs font-medium text-gray-700">${record.timestamp}</span>
+                        <button class="text-red-500 hover:text-red-700 text-xs delete-history" data-id="${record.id}">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-1 text-xs">
+                        <div>量级: ${record.liangji}</div>
+                        <div>GMV: ${record.gmv}</div>
+                        <div>R值: ${record.rValue}</div>
+                        <div>提点: ${record.commissionRate}</div>
+                        <div>基础提成: <span class="font-medium text-secondary">${record.baseCommission}</span></div>
+                        ${incentiveHtml}
+                        <div>总提成: <span class="font-medium text-accent">${record.totalCommission}</span></div>
+                    </div>
+                `;
+                
+                historyList.appendChild(item);
+            });
+            
+            // 添加删除历史记录事件
+            document.querySelectorAll('.delete-history').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const id = parseInt(this.dataset.id);
+                    historyRecords = historyRecords.filter(record => record.id !== id);
+                    localStorage.setItem('commissionHistory', JSON.stringify(historyRecords));
+                    renderHistory();
+                });
+            });
+        }
+    </script>
+    <script>
+        fetch('https://api.t1qq.com/api/tool/daytry?key=JE4mJ1JKh6mTj1JgphRAcKueei&time=random')
+            .then(r => r.json())
+            .then(d => d.data?.note && (document.getElementById('t').textContent = d.data.note))
+            .catch(e => document.getElementById('t').textContent = '错误：' + e.message);
+    </script>
+</body>
+</html>
