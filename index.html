@@ -135,7 +135,7 @@
                             </div>
                             <div class="relative">
                                 <label for="orderSize" class="block text-xs font-medium text-gray-700 mb-1">平均单量大小</label>
-                                <input type="number" id="orderSize" class="w-full px-3 py-2 border border-gray-300 rounded-lg input-focus" placeholder="默认4580">
+                                <input type="number" id="orderSize" class="w-full px-3 py-2 border border-gray-300 rounded-lg input-focus" placeholder="默认4880">
                                 <span id="orderSizeSaved" class="saved-indicator bg-green-100 text-green-800">已保存</span>
                             </div>
                         </div>
@@ -319,7 +319,9 @@
         let historyRecords = JSON.parse(localStorage.getItem('commissionHistory')) || [];
 
         // 从本地存储加载平均单量大小，若无则使用默认值
-        let defaultOrderSize = parseFloat(localStorage.getItem('defaultOrderSize')) || 4580;
+        let defaultOrderSize = parseFloat(localStorage.getItem('defaultOrderSize')) || 48
+            
+        80;
 
         // 初始化页面
         document.addEventListener('DOMContentLoaded', function() {
